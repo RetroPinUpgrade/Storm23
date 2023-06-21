@@ -11,12 +11,12 @@ All new code that can run on Stern Lightning (1981)
 http://pinballrefresh.com  
   
 ## Test / Audit / Settings from coin-door switch
-Tests (test number shown in Credits, Ball in Play is blank)
-1 - Lamps
-2 - Displays
-3 - Solenoids
-4 - Switches
-5 - Sounds (not applicable)
+Tests (test number shown in Credits, Ball in Play is blank)  
+1 - Lamps  
+2 - Displays  
+3 - Solenoids  
+4 - Switches  
+5 - Sounds (not applicable)  
 
 Settings & Audits (page number shown in Ball in Play, Credits is blank)  
 1 - Award Score 1  
