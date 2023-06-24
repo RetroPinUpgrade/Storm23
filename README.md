@@ -137,9 +137,9 @@ Timers add together if multiple modes are started at once
 	right inlane - 2s drop  
 	right to left  
 
-### 3 combos achieved = holdover bonus x  
-6 combos achieved = holdover bonus  
-8 combos achieved = double timers  
+  3 combos achieved = holdover bonus x  
+  6 combos achieved = holdover bonus  
+  8 combos achieved = double timers  
   
 ## Spinner Value  
 	Unlit = 100  
