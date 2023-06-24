@@ -21,18 +21,16 @@
 // Bugs & stuff
 //    credit display test needs unmasking
 //    better callouts/animations for multiball
-//    sound for jackpot hold on saucers
+//    *sound for jackpot hold on saucers
 //    extra ball? special?
 //    earlier targets should be worth something in jackpot+
-//    ball save countdown during lock sequence? turn off BallSaveEndTime?
+//    lame kick from saucer in spinner multi immediately went to sad music
+//    multi stil qualified after someone kicked it?
 //
 
-#define USE_SCORE_OVERRIDES
 #define STORM_MAJOR_VERSION  2023
 #define STORM_MINOR_VERSION  1
-#define DEBUG_MESSAGES  1
-
-
+#define DEBUG_MESSAGES  0
 
 
 /*********************************************************************
@@ -73,14 +71,15 @@ boolean MachineStateChanged = true;
 #define MACHINE_STATE_ADJUST_SOUND_TRACK          (MACHINE_STATE_TEST_DONE-15)
 #define MACHINE_STATE_ADJUST_SAUCER_EJECT         (MACHINE_STATE_TEST_DONE-16)
 #define MACHINE_STATE_ADJUST_MULTIBALL_BALL_SAVE  (MACHINE_STATE_TEST_DONE-17)
-#define MACHINE_STATE_ADJUST_DONE                 (MACHINE_STATE_TEST_DONE-18)
+#define MACHINE_STATE_ADJUST_SPINS_UNTIL_MB       (MACHINE_STATE_TEST_DONE-18)
+#define MACHINE_STATE_ADJUST_DONE                 (MACHINE_STATE_TEST_DONE-19)
 
 byte SelfTestStateToCalloutMap[] = {
   136, 137, 135, 134, 133, 140, 141, 142, 139, 143, 144, 145, 146, 147, 148, 149, 138, 150, 151, 152, // <- SelfTestAndAudit modes
   // Starting Storm23 specific modes
   153, 154, 155, 156, 157, 158, // Freeplay through Callouts volume
   159, 160, 161, 162, 163, 164, 165, // through special award
-  171, 172, 173, 174, // Allow reset, sound track, saucer eject
+  171, 172, 173, 174, 175, // Allow reset, sound track, saucer eject
   0
 };
 
@@ -114,6 +113,7 @@ byte SelfTestStateToCalloutMap[] = {
 #define EEPROM_SOUND_TRACK_BYTE         118
 #define EEPROM_SAUCER_EJECT_BYTE        119
 #define EEPROM_MB_BALL_SAVE_BYTE        120
+#define EEPROM_SPINS_UNTIL_MB_BYTE      121
 #define EEPROM_EXTRA_BALL_SCORE_UL      140
 #define EEPROM_SPECIAL_SCORE_UL         144
 
@@ -158,6 +158,7 @@ byte SelfTestStateToCalloutMap[] = {
 #define SOUND_EFFECT_LIGHTNING_10                       37
 #define SOUND_EFFECT_LIGHTNING_11                       38
 #define SOUND_EFFECT_LIGHTNING_12                       39
+#define SOUND_EFFECT_SAUCER_HOLD                        40
 
 #define SOUND_EFFECT_COIN_DROP_1                        100
 #define SOUND_EFFECT_COIN_DROP_2                        101
@@ -351,6 +352,7 @@ byte HoldoverAwards[4];
 byte SoundTrackNum = 1;
 byte SaucerEjectStrength = 1;
 byte MultiballBallSave = 0;
+byte SpinsUntilMultiball = 75;
 
 #define HOLDOVER_BONUS_X            0x01
 #define HOLDOVER_BONUS              0x02
@@ -557,7 +559,10 @@ void ReadStoredParameters() {
   else if (SaucerEjectStrength>3) SaucerEjectStrength = 3;
 
   MultiballBallSave = ReadSetting(EEPROM_MB_BALL_SAVE_BYTE, 0);
-  if (BallSaveNumSeconds > 1) MultiballBallSave = 0;
+  if (MultiballBallSave > 1) MultiballBallSave = 0;
+
+  SpinsUntilMultiball = ReadSetting(EEPROM_SPINS_UNTIL_MB_BYTE, 75);
+  if ((SpinsUntilMultiball%25)!=0 || SpinsUntilMultiball>125) SpinsUntilMultiball = 75;
 
   ExtraBallValue = RPU_ReadULFromEEProm(EEPROM_EXTRA_BALL_SCORE_UL);
   if (ExtraBallValue % 1000 || ExtraBallValue > 100000) ExtraBallValue = 20000;
@@ -1987,6 +1992,17 @@ int RunSelfTest(int curState, boolean curStateChanged) {
           CurrentAdjustmentByte = &MultiballBallSave;
           CurrentAdjustmentStorageByte = EEPROM_MB_BALL_SAVE_BYTE;
           break;
+        case MACHINE_STATE_ADJUST_SPINS_UNTIL_MB:
+          AdjustmentType = ADJ_TYPE_LIST;
+          NumAdjustmentValues = 5;
+          AdjustmentValues[0] = 25;
+          AdjustmentValues[1] = 50;
+          AdjustmentValues[2] = 75;
+          AdjustmentValues[3] = 100;
+          AdjustmentValues[4] = 125;
+          CurrentAdjustmentByte = &SpinsUntilMultiball;
+          CurrentAdjustmentStorageByte = EEPROM_SPINS_UNTIL_MB_BYTE;
+          break;
         case MACHINE_STATE_ADJUST_DONE:
           returnState = MACHINE_STATE_ATTRACT;
           break;
@@ -2539,6 +2555,7 @@ int InitGamePlay(boolean curStateChanged) {
     Audio.StopAllAudio();
     RPU_DisableSolenoidStack();
     RPU_TurnOffAllLamps();
+    RPU_SetDisableFlippers(true);
     STORM23_SetPlayfieldDisplay(0, false, false, false);
     GameStartNotificationTime = CurrentTime;
     STORM23_SetDisplayBallInPlay(1);    
@@ -2558,7 +2575,7 @@ int InitGamePlay(boolean curStateChanged) {
       StandupHits[count] = 0;
       StandupLevel[count] = 0;
       LoopMulitballGoal[count] = 3;
-      SpinnerMaxGoal[count] = 75;
+      SpinnerMaxGoal[count] = SpinsUntilMultiball;
       HoldoverAwards[count] = 0;  
       BonusXIncreaseAvailable[CurrentPlayer] = 0;
       StormMultiballReady[CurrentPlayer] = false;
@@ -3019,7 +3036,7 @@ int ManageGameMode() {
       PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_AFTER_MULTI);
     }
   } else {
-    BallSaveEndTime = 0;
+    if (MultiballBallSave==0) BallSaveEndTime = 0;
   }
 
   if ((CurrentTime - LastSwitchHitTime) > 3000) TimersPaused = true;
@@ -3028,6 +3045,7 @@ int ManageGameMode() {
   if (Saucer1ScheduledEject && (CurrentTime>Saucer1ScheduledEject || NumberOfBallsInPlay==1)) {
     Saucer1ScheduledEject = 0;
     EjectUnlockedBall(0);
+    Audio.StopSound(SOUND_EFFECT_SAUCER_HOLD);
     if (DEBUG_MESSAGES) {
       char buf[128];
       sprintf(buf, "Eject 0, l=%d, t=%d, bip=%d\n", NumberOfBallsLocked, CountBallsInTrough(), NumberOfBallsInPlay);
@@ -3038,6 +3056,7 @@ int ManageGameMode() {
   if (Saucer2ScheduledEject && (CurrentTime>Saucer2ScheduledEject || NumberOfBallsInPlay==1)) {
     Saucer2ScheduledEject = 0;
     EjectUnlockedBall(1);
+    Audio.StopSound(SOUND_EFFECT_SAUCER_HOLD);
     if (DEBUG_MESSAGES) {
       char buf[128];
       sprintf(buf, "Eject 1, l=%d, t=%d, bip=%d\n", NumberOfBallsLocked, CountBallsInTrough(), NumberOfBallsInPlay);
@@ -3266,7 +3285,7 @@ int ManageGameMode() {
         NumberOfBallsInPlay = 3;
         
         IncreasePlayfieldMultiplier(30000);
-        BallSaveEndTime = 0;
+        if (MultiballBallSave==0) BallSaveEndTime = 0;
         SetGameMode(GAME_MODE_UNSTRUCTURED_PLAY);        
       }
       break;
@@ -3654,95 +3673,85 @@ void HandleSaucerDownSwitch(byte switchIndex) {
   }
 
   if (MachineState==MACHINE_STATE_NORMAL_GAMEPLAY) {
-//    if (GameMode==GAME_MODE_UNSTRUCTURED_PLAY) {
+
+    if (DEBUG_MESSAGES) {
+      char buf[128];
+      sprintf(buf, "handling lock index %d (bip=%d, pl=0x%02X, ml=0x%02X)\n", switchIndex, NumberOfBallsInPlay, PlayerLockStatus[CurrentPlayer], MachineLocks);
+      Serial.write(buf);
+    }
+
+    if (NumberOfBallsInPlay<2 && PlayerLockStatus[CurrentPlayer] & (LOCK_1_AVAILABLE<<switchIndex)) {
+      // Our lock is available, so we should lock
+      LockBall(switchIndex, false);
+      QueueNotification(SOUND_EFFECT_VP_BALL_LOCKED, 10);
+      if (CountBits(PlayerLockStatus[CurrentPlayer]&LOCKS_ENGAGED_MASK)==1) SetGameMode(GAME_MODE_LOCK_SEQUENCE_1);
+      else SetGameMode(GAME_MODE_LOCK_SEQUENCE_2);
 
       if (DEBUG_MESSAGES) {
         char buf[128];
-        sprintf(buf, "handling lock index %d (bip=%d, pl=0x%02X, ml=0x%02X)\n", switchIndex, NumberOfBallsInPlay, PlayerLockStatus[CurrentPlayer], MachineLocks);
+        sprintf(buf, "lock ML=0x%02X, BL=%d, BIP=%d, T=%d, PL=0x%02X\n", MachineLocks, NumberOfBallsLocked, NumberOfBallsInPlay, CountBallsInTrough(), PlayerLockStatus[CurrentPlayer]);
         Serial.write(buf);
       }
+      
+    } else if (StormMultiballRunning && NumberOfBallsInPlay>1) {
+      StormMultiballMegaJackpotReady = true;
+      
+      // Storm multiball handler
+      // Figure out if there are one or two balls in saucers
+      byte numBallsInSaucers = 1;
+      if (switchIndex==0 && UpperLockSwitchState[1]) numBallsInSaucers += 1;
+      if (switchIndex==1 && UpperLockSwitchState[2]) numBallsInSaucers += 1;
 
-      if (NumberOfBallsInPlay<2 && PlayerLockStatus[CurrentPlayer] & (LOCK_1_AVAILABLE<<switchIndex)) {
-        // Our lock is available, so we should lock
-        LockBall(switchIndex, false);
-        QueueNotification(SOUND_EFFECT_VP_BALL_LOCKED, 10);
-        if (CountBits(PlayerLockStatus[CurrentPlayer]&LOCKS_ENGAGED_MASK)==1) SetGameMode(GAME_MODE_LOCK_SEQUENCE_1);
-        else SetGameMode(GAME_MODE_LOCK_SEQUENCE_2);
-
-        if (DEBUG_MESSAGES) {
-          char buf[128];
-          sprintf(buf, "lock ML=0x%02X, BL=%d, BIP=%d, T=%d, PL=0x%02X\n", MachineLocks, NumberOfBallsLocked, NumberOfBallsInPlay, CountBallsInTrough(), PlayerLockStatus[CurrentPlayer]);
-          Serial.write(buf);
-        }
-        
-      } else if (StormMultiballRunning && NumberOfBallsInPlay>1) {
-        StormMultiballMegaJackpotReady = true;
-        
-        // Storm multiball handler
-        // Figure out if there are one or two balls in saucers
-        byte numBallsInSaucers = 1;
-        if (switchIndex==0 && UpperLockSwitchState[1]) numBallsInSaucers += 1;
-        if (switchIndex==1 && UpperLockSwitchState[2]) numBallsInSaucers += 1;
-
-        if (numBallsInSaucers==2) {
-          if (NumberOfBallsInPlay==2) {
-            // Add a ball
-            SetGameMode(GAME_MODE_STORM_ADD_A_BALL);
-            StartScoreAnimation( PlayfieldMultiplier * 2 * STORM_MULTIBALL_JACKPOT_VALUE );
-            QueueNotification(SOUND_EFFECT_VP_DOUBLE_JACKPOT, 10);
-          } else {
-            // Score a double Jackpot
-            if (switchIndex==0) {
-              Saucer1ScheduledEject = CurrentTime + 15000;
-              Saucer2ScheduledEject = CurrentTime + 3000;
-            } else if (switchIndex==1) {
-              Saucer2ScheduledEject = CurrentTime + 15000;
-              Saucer1ScheduledEject = CurrentTime + 3000;
-            }
-            StartScoreAnimation( PlayfieldMultiplier * 5 * STORM_MULTIBALL_JACKPOT_VALUE );
-            QueueNotification(SOUND_EFFECT_VP_SUPER_JACKPOT, 10);
-          }          
-        } else {
-          // This is a regular jackpot
-          if (switchIndex==0) Saucer1ScheduledEject = CurrentTime + 15000;
-          else if (switchIndex==1) Saucer2ScheduledEject = CurrentTime + 15000;
+      if (numBallsInSaucers==2) {
+        if (NumberOfBallsInPlay==2) {
+          // Add a ball
+          SetGameMode(GAME_MODE_STORM_ADD_A_BALL);
           StartScoreAnimation( PlayfieldMultiplier * 2 * STORM_MULTIBALL_JACKPOT_VALUE );
           QueueNotification(SOUND_EFFECT_VP_DOUBLE_JACKPOT, 10);
-        }
-      } else if (LoopMultiballRunning && switchIndex==0 && LoopMultiballDoubleJackpotReady) {
-        // During loop multiball, the top saucer can award a jackpot
-        LoopMultiballDoubleJackpotReady = false;
-        Saucer1ScheduledEject = CurrentTime + 10000;
-        StartScoreAnimation( ((unsigned long)LoopMulitballGoal[CurrentPlayer]) * PlayfieldMultiplier * 2 * LOOP_MULTIBALL_JACKPOT_VALUE );
-        QueueNotification(SOUND_EFFECT_VP_DOUBLE_JACKPOT, 10);
-      } else if (SpinnerMultiballRunning && switchIndex==1 && SpinnerMultiballDoubleJackpotReady) {
-        // During spinner multiball, the right saucer can award a jackpot
-        SpinnerMultiballDoubleJackpotReady = false;
-        Saucer2ScheduledEject = CurrentTime + 10000;
-        StartScoreAnimation( PlayfieldMultiplier * 2 * SPINNER_MULTIBALL_JACKPOT_VALUE );
-        QueueNotification(SOUND_EFFECT_VP_DOUBLE_JACKPOT, 10);
+        } else {
+          // Score a double Jackpot
+          if (switchIndex==0) {
+            Saucer1ScheduledEject = CurrentTime + 15000;
+            Saucer2ScheduledEject = CurrentTime + 3000;
+          } else if (switchIndex==1) {
+            Saucer2ScheduledEject = CurrentTime + 15000;
+            Saucer1ScheduledEject = CurrentTime + 3000;
+          }
+          StartScoreAnimation( PlayfieldMultiplier * 5 * STORM_MULTIBALL_JACKPOT_VALUE );
+          QueueNotification(SOUND_EFFECT_VP_SUPER_JACKPOT, 10);
+        }          
       } else {
-        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 1000;
-        PlaySoundEffect(SOUND_EFFECT_SAUCER_REJECTED);
-        // Have to request eject before spotting standup target
-        // or else the eject will fail based on locks
-        if (DEBUG_MESSAGES) {
-          Serial.write("default = eject and spot (when applicable)\n");
-        }
-        EjectUnlockedBall(switchIndex);
-        if (NumberOfBallsInPlay<2) SpotStandupTarget(switchIndex);
-        LastSaucer1Hit = CurrentTime;
+        // This is a regular jackpot
+        if (switchIndex==0) Saucer1ScheduledEject = CurrentTime + 15000;
+        else if (switchIndex==1) Saucer2ScheduledEject = CurrentTime + 15000;
+        PlaySoundEffect(SOUND_EFFECT_SAUCER_HOLD);
+        StartScoreAnimation( PlayfieldMultiplier * 2 * STORM_MULTIBALL_JACKPOT_VALUE );
+        QueueNotification(SOUND_EFFECT_VP_DOUBLE_JACKPOT, 10);
       }
-/*      
+    } else if (LoopMultiballRunning && switchIndex==0 && LoopMultiballDoubleJackpotReady) {
+      // During loop multiball, the top saucer can award a jackpot
+      LoopMultiballDoubleJackpotReady = false;
+      Saucer1ScheduledEject = CurrentTime + 10000;
+      StartScoreAnimation( ((unsigned long)LoopMulitballGoal[CurrentPlayer]) * PlayfieldMultiplier * 2 * LOOP_MULTIBALL_JACKPOT_VALUE );
+      QueueNotification(SOUND_EFFECT_VP_DOUBLE_JACKPOT, 10);
+    } else if (SpinnerMultiballRunning && switchIndex==1 && SpinnerMultiballDoubleJackpotReady) {
+      // During spinner multiball, the right saucer can award a jackpot
+      SpinnerMultiballDoubleJackpotReady = false;
+      Saucer2ScheduledEject = CurrentTime + 10000;
+      StartScoreAnimation( PlayfieldMultiplier * 2 * SPINNER_MULTIBALL_JACKPOT_VALUE );
+      QueueNotification(SOUND_EFFECT_VP_DOUBLE_JACKPOT, 10);
     } else {
+      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 1000;
+      PlaySoundEffect(SOUND_EFFECT_SAUCER_REJECTED);
+      // Have to request eject before spotting standup target
+      // or else the eject will fail based on locks
       if (DEBUG_MESSAGES) {
-        char buf[128];
-        sprintf(buf, "Got a ball in lock - kicking %d\n", switchIndex);
-        Serial.write(buf);
+        Serial.write("default = eject and spot (when applicable)\n");
       }
       EjectUnlockedBall(switchIndex);
+      if (NumberOfBallsInPlay<2) SpotStandupTarget(switchIndex);
+      LastSaucer1Hit = CurrentTime;
     }
-*/    
   } else {
     if (DEBUG_MESSAGES) {
       Serial.write("Handling saucer outside of game play\n");
@@ -4065,6 +4074,9 @@ void HandleSpinnerMultiball() {
       StandupHits[CurrentPlayer] &= ~STANDUPS_FOR_LOCK_2;
 
       SpinnerMultiballRunning = true;
+      if (MultiballBallSave) {
+        BallSaveEndTime = CurrentTime + ((unsigned long)BallSaveNumSeconds)*1000;
+      }
       SpinnerMultiballJackpotReady = true;
       PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_MULTIBALL);
     }
@@ -4092,6 +4104,9 @@ void HandleLoopMultiball() {
       StandupHits[CurrentPlayer] &= ~STANDUPS_FOR_LOCK_1;
       
       LoopMultiballRunning = true;
+      if (MultiballBallSave) {
+        BallSaveEndTime = CurrentTime + ((unsigned long)BallSaveNumSeconds)*1000;
+      }
       LoopMultiballJackpotReady = false;
       PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_MULTIBALL);
     }
@@ -4294,6 +4309,9 @@ void HandleStandupTarget(byte switchHit) {
 
       StormMultiballReady[CurrentPlayer] = false;
       StormMultiballRunning = true;
+      if (MultiballBallSave) {
+        BallSaveEndTime = CurrentTime + ((unsigned long)BallSaveNumSeconds)*1000;
+      }
       PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_MULTIBALL);
     }
   } else {
