@@ -5,7 +5,10 @@ All new code that can run on Stern Lightning (1981)
 1) build or buy a board to interface an Arduino MEGA 2560 PRO with the MPU processor socket or J5 connector  
 2) get this code, put it in a Storm23 folder  
 3) update configuration in RPU_config.h to match your board type  
-4) compile/install code on the Arduino MEGA 2560 PRO  
+4) compile/install code on the Arduino MEGA 2560 PRO
+5) Example audio files*:  https://drive.google.com/file/d/1mYQ0klncc1H2uyhFZB6mupIjTGjiKkT6/view?usp=sharing
+
+     * Music by Karl Casey @ White Bat Audio
   
 ## More information
 http://pinballrefresh.com  
