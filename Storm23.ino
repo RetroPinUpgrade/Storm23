@@ -21,11 +21,16 @@
 // Bugs & stuff
 //    credit display test needs unmasking
 //    better callouts/animations for multiball
-//    *sound for jackpot hold on saucers
 //    extra ball? special?
 //    earlier targets should be worth something in jackpot+
 //    lame kick from saucer in spinner multi immediately went to sad music
 //    multi stil qualified after someone kicked it?
+//    multi balls should be unqualified when storm (or others?) are kicked
+//    outlanes - no sound?
+//    Should we be locking a ball if multiball is running!?
+//        if (!multiballRunning) QueueNotification(SOUND_EFFECT_VP_BALL_1_LOCKED, 10);
+//        LockBall(0);
+//    multi still qualified after locks have been ejected?
 //
 
 #define STORM_MAJOR_VERSION  2023
@@ -622,7 +627,7 @@ void setup() {
   // Set up the chips and interrupts
   unsigned long initResult = 0;
   if (DEBUG_MESSAGES) Serial.write("Initializing MPU\n");
-  initResult = RPU_InitializeMPU(RPU_CMD_BOOT_ORIGINAL_IF_CREDIT_RESET | RPU_CMD_INIT_AND_RETURN_EVEN_IF_ORIGINAL_CHOSEN | RPU_CMD_PERFORM_MPU_TEST | RPU_CMD_BOOT_ORIGINAL_IF_SWITCH_CLOSED, SW_CREDIT_RESET);
+  initResult = RPU_InitializeMPU(RPU_CMD_BOOT_ORIGINAL_IF_CREDIT_RESET | RPU_CMD_INIT_AND_RETURN_EVEN_IF_ORIGINAL_CHOSEN | RPU_CMD_PERFORM_MPU_TEST | RPU_CMD_BOOT_ORIGINAL_IF_NOT_SWITCH_CLOSED, SW_CREDIT_RESET);
 
   if (DEBUG_MESSAGES) {
     char buf[128];
