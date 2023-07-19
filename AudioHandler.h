@@ -102,7 +102,6 @@ struct SoundEffectEntry {
 #define WTSerial Serial1 
 #endif
 
-
 class wavTrigger
 {
 public:
