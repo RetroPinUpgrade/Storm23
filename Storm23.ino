@@ -31,11 +31,12 @@
 //        if (!multiballRunning) QueueNotification(SOUND_EFFECT_VP_BALL_1_LOCKED, 10);
 //        LockBall(0);
 //    multi still qualified after locks have been ejected?
+//    ball missing with 4 player reverts to 1 player game?
 //
 
 #define STORM_MAJOR_VERSION  2023
 #define STORM_MINOR_VERSION  1
-#define DEBUG_MESSAGES  0
+#define DEBUG_MESSAGES  1
 
 
 /*********************************************************************
@@ -607,6 +608,27 @@ void QueueDIAGNotification(unsigned short notificationNum) {
 }
 
 
+#ifdef RPU_OS_USE_SB300
+void InitSB300Registers() {
+  RPU_PlaySB300SquareWave(1, 0x00); // Write 0x00 to CR2 (Timer 2 off, continuous mode, 16-bit, C2 clock, CR3 set)
+  RPU_PlaySB300SquareWave(0, 0x00); // Write 0x00 to CR3 (Timer 3 off, continuous mode, 16-bit, C3 clock, not prescaled)
+  RPU_PlaySB300SquareWave(1, 0x01); // Write 0x00 to CR2 (Timer 2 off, continuous mode, 16-bit, C2 clock, CR1 set)
+  RPU_PlaySB300SquareWave(0, 0x00); // Write 0x00 to CR1 (Timer 1 off, continuous mode, 16-bit, C1 clock, timers allowed)
+}
+
+
+void PlaySB300StartupBeep() {
+  RPU_PlaySB300SquareWave(1, 0x92); // Write 0x92 to CR2 (Timer 2 on, continuous mode, 16-bit, E clock, CR3 set)
+  RPU_PlaySB300SquareWave(0, 0x92); // Write 0x92 to CR3 (Timer 3 on, continuous mode, 16-bit, E clock, not prescaled)
+  RPU_PlaySB300SquareWave(4, 0x02); // Set Timer 2 to 0x0200
+  RPU_PlaySB300SquareWave(5, 0x00); 
+  RPU_PlaySB300SquareWave(6, 0x80); // Set Timer 3 to 0x8000
+  RPU_PlaySB300SquareWave(7, 0x00);
+  RPU_PlaySB300Analog(0, 0x02);
+}
+#endif
+
+
 void setup() {
 
   if (DEBUG_MESSAGES) {
@@ -627,8 +649,12 @@ void setup() {
   // Set up the chips and interrupts
   unsigned long initResult = 0;
   if (DEBUG_MESSAGES) Serial.write("Initializing MPU\n");
-  initResult = RPU_InitializeMPU(RPU_CMD_BOOT_ORIGINAL_IF_CREDIT_RESET | RPU_CMD_INIT_AND_RETURN_EVEN_IF_ORIGINAL_CHOSEN | RPU_CMD_PERFORM_MPU_TEST | RPU_CMD_BOOT_ORIGINAL_IF_NOT_SWITCH_CLOSED, SW_CREDIT_RESET);
-
+  if (RPU_OS_HARDWARE_REV<=3) {
+    initResult = RPU_InitializeMPU(RPU_CMD_BOOT_ORIGINAL_IF_NOT_SWITCH_CLOSED);
+  } else {
+    initResult = RPU_InitializeMPU(RPU_CMD_BOOT_ORIGINAL_IF_CREDIT_RESET | RPU_CMD_INIT_AND_RETURN_EVEN_IF_ORIGINAL_CHOSEN | RPU_CMD_PERFORM_MPU_TEST | RPU_CMD_BOOT_ORIGINAL_IF_NOT_SWITCH_CLOSED, SW_CREDIT_RESET);
+  }
+  
   if (DEBUG_MESSAGES) {
     char buf[128];
     sprintf(buf, "Return from init = 0x%04lX\n", initResult);
@@ -649,13 +675,14 @@ void setup() {
 
   if (initResult & RPU_RET_ORIGINAL_CODE_REQUESTED) {
     delay(100);
+    if (RPU_OS_HARDWARE_REV<=3) delay(2000);
     QueueDIAGNotification(SOUND_EFFECT_DIAG_STARTING_ORIGINAL_CODE);
     delay(100);
     while (Audio.Update(millis()));
     // Arduino should hang if original code is running
     while (1);
   }
-  QueueDIAGNotification(SOUND_EFFECT_DIAG_STARTING_NEW_CODE);
+  if (RPU_OS_HARDWARE_REV>3) QueueDIAGNotification(SOUND_EFFECT_DIAG_STARTING_NEW_CODE);
   RPU_DisableSolenoidStack();
   RPU_SetDisableFlippers(true);
 
@@ -689,6 +716,10 @@ void setup() {
   DropTargets3.DefineResetSolenoid(0, SOL_DROP_3_RESET);
 
   Audio.SetMusicDuckingGain(25);
+#ifdef RPU_OS_USE_SB300
+  InitSB300Registers();
+  PlaySB300StartupBeep();
+#endif
 }
 
 byte ReadSetting(byte setting, byte defaultValue) {
@@ -2323,6 +2354,7 @@ unsigned long AttractDisplayRampStart = 0;
 byte AttractLastHeadMode = 255;
 byte AttractLastPlayfieldMode = 255;
 byte InAttractMode = false;
+byte CurrentAttractAnimationStep = 255;
 
 unsigned long Saucer1Down = 0;
 unsigned long Saucer2Down = 0;
@@ -2348,6 +2380,7 @@ int RunAttractMode(int curState, boolean curStateChanged) {
     MachineLocks = 0;
     ThorPlayTime = CurrentTime + 30000;
     STORM23_SetPlayfieldDisplay(99, true, true, true);
+    ShowPlayerScores(0xFF, false, false);
   }
 
   if (CurrentTime>ThorPlayTime) {
@@ -2389,7 +2422,7 @@ int RunAttractMode(int curState, boolean curStateChanged) {
   }
 
   MoveBallFromOutholeToRamp();
-  
+ 
   // Alternate displays between high score and blank
   if (CurrentTime < 16000) {
     if (AttractLastHeadMode != 1) {
@@ -2438,11 +2471,14 @@ int RunAttractMode(int curState, boolean curStateChanged) {
     AttractLastLadderTime = CurrentTime;
   }
 
-//  ShowLampAnimation(attractPlayfieldPhase, 40, CurrentTime, 14, false, false);
-  ShowLampAnimationSingleStep(attractPlayfieldPhase, ((CurrentTime/25)%LAMP_ANIMATION_STEPS));
+  byte animStep = ((CurrentTime/25)%LAMP_ANIMATION_STEPS);
+  if (animStep!=CurrentAttractAnimationStep) {
+    CurrentAttractAnimationStep = animStep;
+    ShowLampAnimationSingleStep(attractPlayfieldPhase, animStep);
+  }
 
   byte switchHit;
-  while ( (switchHit = RPU_PullFirstFromSwitchStack()) != SWITCH_STACK_EMPTY ) {
+  while ((switchHit = RPU_PullFirstFromSwitchStack()) != SWITCH_STACK_EMPTY ) {
     if (switchHit == SW_CREDIT_RESET) {
       if (AddPlayer(true)) returnState = MACHINE_STATE_INIT_GAMEPLAY;
     }
@@ -4681,7 +4717,6 @@ unsigned long LastLoopReportTime = 0;
 
 void loop() {
 
-/*
   if (DEBUG_MESSAGES) {
     NumLoops += 1;
     if (CurrentTime>(LastLoopReportTime+1000)) {
@@ -4692,7 +4727,7 @@ void loop() {
       NumLoops = 0;
     }
   }
-*/
+
   
   CurrentTime = millis();
   int newMachineState = MachineState;
@@ -4714,9 +4749,7 @@ void loop() {
     MachineStateChanged = false;
   }
 
-//  RPU_ApplyFlashToLamps(CurrentTime);
-//  RPU_UpdateTimedSolenoidStack(CurrentTime);
-//  RPU_UpdateTimedSoundStack(CurrentTime);
+  RPU_DataRead(0);
   RPU_Update(CurrentTime);
   Audio.Update(CurrentTime);
 

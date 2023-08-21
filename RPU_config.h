@@ -1,5 +1,5 @@
 /**************************************************************************
- *     This file is part of the RPU OS for Arduino Project.
+       This file is part of the RPU OS for Arduino Project.
 
     I, Dick Hamill, the author of this program disclaim all copyright
     in order to make this program freely available in perpetuity to
@@ -16,7 +16,7 @@
     GNU General Public License for more details.
 
     See <https://www.gnu.org/licenses/>.
- */
+*/
 
 #ifndef RPU_CONFIG_H
 
@@ -33,7 +33,7 @@
 // Hardware Rev 100 (different order of magnitude because it's a different approach) plugs into the CPU socket
 // Hardware Rev 101 - first RPU CPU interposer release board
 // Hardware Rev 102 - second RPU (with display and WIFI socket)
-#define RPU_OS_HARDWARE_REV   101
+#define RPU_OS_HARDWARE_REV   3
 
 // Available Architectures (0-9 is for B/S Boards, 10-19 is for W)
 //  RPU_MPU_ARCHITECTURE 1 = -17, -35, 100, 200, or compatible
@@ -48,13 +48,14 @@
 // but in other cases we can specify if we're building for a 6800.
 // Define RPU_MPU_BUILD_FOR_6800 with a 0 for 6802 or 6808, and with
 // a 1 for 6800
-#define RPU_MPU_BUILD_FOR_6800  0
+#define RPU_MPU_BUILD_FOR_6800  1
 
 // These defines allow this configuration to eliminate some functions
 // to reduce program size
-//#define RPU_OS_USE_DIP_SWITCHES 
+//#define RPU_OS_USE_DIP_SWITCHES
 //#define RPU_OS_USE_S_AND_T
 //#define RPU_OS_USE_DASH51
+//#define RPU_OS_USE_DASH32
 //#define RPU_OS_USE_SB100
 #define RPU_OS_USE_SB300
 //#define RPU_OS_USE_WAV_TRIGGER
@@ -71,28 +72,28 @@
 
 
 
-#if (RPU_MPU_ARCHITECTURE==1) 
+#if (RPU_MPU_ARCHITECTURE==1)
 /*******************************************************
- * This section is only for games that use the 
- * -17, -35, 100, and 200 MPU boards
- */
+   This section is only for games that use the
+   -17, -35, 100, and 200 MPU boards
+*/
 // Depending on the number of digits, the RPU_OS_SOFTWARE_DISPLAY_INTERRUPT_INTERVAL
 // can be adjusted in order to change the refresh rate of the displays.
-// The original -17 / MPU-100 boards ran at 320 Hz 
+// The original -17 / MPU-100 boards ran at 320 Hz
 // The Alltek runs the displays at 440 Hz (probably so 7-digit displays won't flicker)
 // The value below is calculated with this formula:
-//       Value = (interval in ms) * (16*10^6) / (1*1024) - 1 
+//       Value = (interval in ms) * (16*10^6) / (1*1024) - 1
 //          (must be <65536)
 // Choose one of these values (or do whatever)
-//  Value         Frequency 
+//  Value         Frequency
 //  48            318.8 Hz
 //  47            325.5 Hz
 //  46            332.4 Hz increments   (I use this for 6-digits displays)
 //  45            339.6 Hz
 //  40            381 Hz
 //  35            434 Hz     (This would probably be good for 7-digit displays)
-//  34            446.4 Hz      
-#define RPU_OS_SOFTWARE_DISPLAY_INTERRUPT_INTERVAL  35  
+//  34            446.4 Hz
+#define RPU_OS_SOFTWARE_DISPLAY_INTERRUPT_INTERVAL  35
 //#define RPU_OS_ADJUSTABLE_DISPLAY_INTERRUPT
 
 #ifdef RPU_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
@@ -120,7 +121,7 @@
 #define RPU_OS_TIMING_LOOP_PADDING_IN_MICROSECONDS  70
 
 // Fast boards might need a slower lamp strobe
-#define RPU_OS_SLOW_DOWN_LAMP_STROBE  0
+//#define RPU_OS_SLOW_DOWN_LAMP_STROBE  0
 
 #ifdef RPU_OS_USE_AUX_LAMPS
 #define RPU_NUM_LAMP_BANKS 11
@@ -128,20 +129,20 @@
 #else
 #define RPU_NUM_LAMP_BANKS 8
 #define RPU_MAX_LAMPS      60
-#endif 
+#endif
 
-#elif (RPU_MPU_ARCHITECTURE > 9) 
+#elif (RPU_MPU_ARCHITECTURE > 9)
 /*******************************************************
- * This section is only for games that use the 
- * System 4, 6, 7, 9 or 11 / other MPU boards
- */
+   This section is only for games that use the
+   System 4, 6, 7, 9 or 11 / other MPU boards
+*/
 
 #define RPU_NUM_LAMP_BANKS             8
 #define RPU_MAX_LAMPS                  64
 
 #define NUM_SWITCH_BYTES                8
 #define MAX_NUM_SWITCHES                64
- 
+
 #if (RPU_MPU_ARCHITECTURE<13)
 #define RPU_OS_MAX_DISPLAY_SCORE  999999
 #define RPU_OS_NUM_DIGITS       6
