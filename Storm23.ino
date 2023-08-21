@@ -35,8 +35,8 @@
 //
 
 #define STORM_MAJOR_VERSION  2023
-#define STORM_MINOR_VERSION  1
-#define DEBUG_MESSAGES  1
+#define STORM_MINOR_VERSION  2
+#define DEBUG_MESSAGES  0
 
 
 /*********************************************************************
@@ -4717,7 +4717,7 @@ unsigned long LastLoopReportTime = 0;
 
 void loop() {
 
-  if (DEBUG_MESSAGES) {
+  if (0 && DEBUG_MESSAGES) {
     NumLoops += 1;
     if (CurrentTime>(LastLoopReportTime+1000)) {
       LastLoopReportTime = CurrentTime;
@@ -4749,7 +4749,6 @@ void loop() {
     MachineStateChanged = false;
   }
 
-  RPU_DataRead(0);
   RPU_Update(CurrentTime);
   Audio.Update(CurrentTime);
 
