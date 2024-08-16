@@ -14,6 +14,7 @@
 #include "SelfTestAndAudit.h"
 #include "AudioHandler.h"
 #include "LampAnimations.h"
+#include "ALB-Communication.h"
 #include <EEPROM.h>
 
 //  "Music by Karl Casey @ White Bat Audio"
@@ -294,6 +295,37 @@ unsigned long Saucer2EjectTime = 0;
 
 AudioHandler Audio;
 
+
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+#define S23_ANIMATION_YELLOW_PULSE        0
+#define S23_ANIMATION_CYAN_PULSE          1
+#define S23_ANIMATION_GREEN_FLASH         2
+#define S23_ANIMATION_PURPLE_LOOP         3
+#define S23_ANIMATION_LTOR_BLUE           4
+#define S23_ANIMATION_RTOL_BLUE           5
+#define S23_ANIMATION_LEFT_FLASH          6
+#define S23_ANIMATION_RIGHT_FLASH         7
+#define S23_ANIMATION_SPARKLE             8
+#define S23_ANIMATION_FIRE                9
+#define S23_ANIMATION_LIGHTNING_1         10
+#define S23_ANIMATION_LIGHTNING_2         11
+#define S23_ANIMATION_LIGHTNING_3         12
+#define S23_ANIMATION_LIGHTNING_4         13
+#define S23_ANIMATION_LIGHTNING_5         14
+#define S23_ANIMATION_LIGHTNING_6         15
+#define S23_ANIMATION_LIGHTNING_7         16
+#define S23_ANIMATION_LIGHTNING_8         17
+#define S23_ANIMATION_LIGHTNING_9         18
+#define S23_ANIMATION_LIGHTNING_10        19
+#define S23_ANIMATION_LIGHTNING_11        20
+#define S23_ANIMATION_LIGHTNING_12        21
+#define S23_ANIMATION_CANDY_PULSE         22
+#define S23_ANIMATION_BIG_LIGHTNING_1     23
+#define S23_ANIMATION_BIG_LIGHTNING_2     24
+#define S23_ANIMATION_DIM_LIGHTNING_1     25
+
+AccessoryLampBoard TopperALB;
+#endif
 
 
 /*********************************************************************
@@ -719,6 +751,12 @@ void setup() {
 #ifdef RPU_OS_USE_SB300
   InitSB300Registers();
   PlaySB300StartupBeep();
+#endif
+
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+  TopperALB.InitOutogingCommunication();
+  TopperALB.SetTargetDeviceAddress(8);
+  TopperALB.EnableLamps();
 #endif
 }
 
@@ -1533,6 +1571,10 @@ boolean AddCoin(byte chuteNum) {
   if (chuteNum>2) return false;
   byte cpcSelection = GetCPCSelection(chuteNum);
 
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+  TopperALB.PlayAnimation(S23_ANIMATION_GREEN_FLASH);
+#endif
+
   // Find the lowest chute num with the same ratio selection
   // and use that ChuteCoinsInProgress counter
   byte chuteNumToUse;
@@ -1548,13 +1590,13 @@ boolean AddCoin(byte chuteNum) {
   ChuteCoinsInProgress[chuteNumToUse] += 1;
 
   if (ChuteCoinsInProgress[chuteNumToUse]==cpcCoins) {
-    if (cpcCredits>cpcCoins) AddCredit(cpcCredits - (coinProgressBefore));
-    else AddCredit(cpcCredits);
+    if (cpcCredits>cpcCoins) AddCredit(true, cpcCredits - (coinProgressBefore));
+    else AddCredit(true, cpcCredits);
     ChuteCoinsInProgress[chuteNumToUse] = 0;
     creditAdded = true;
   } else {
     if (cpcCredits>cpcCoins) {
-      AddCredit(1);
+      AddCredit(true, 1);
       creditAdded = true;
     } else {
     }
@@ -1773,6 +1815,17 @@ void UpdatePlayerLocks() {
       PlayerLockStatus[CurrentPlayer] &= ~LOCK_2_AVAILABLE;
     }  
   }
+
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+  if ( (PlayerLockStatus[CurrentPlayer]&LOCK_1_ENGAGED) && (PlayerLockStatus[CurrentPlayer]&LOCK_2_ENGAGED) ) {
+    TopperALB.LoopAnimation(S23_ANIMATION_CANDY_PULSE);
+  } else if ( (PlayerLockStatus[CurrentPlayer]&LOCK_1_ENGAGED) ) {
+    TopperALB.LoopAnimation(S23_ANIMATION_YELLOW_PULSE);
+  } else if ( (PlayerLockStatus[CurrentPlayer]&LOCK_2_ENGAGED) ) {
+    TopperALB.LoopAnimation(S23_ANIMATION_CYAN_PULSE);
+  }
+#endif
+  
 }
 
 void LockBall(byte lockIndex, boolean updateNumberOfBallsLocked = true) {
@@ -1788,7 +1841,8 @@ void ReleaseLockedBall(byte lockIndex) {
     // This ball can be released
     NumberOfBallsLocked -= 1;
     NumberOfBallsInPlay += 1;
-    
+
+    fix saucer eject strength -- more options (one is too weak and two is too strong)
     if (lockIndex==0) RPU_PushToSolenoidStack(SOL_SAUCER_1, SAUCER_KICKOUT_TIME + SaucerEjectStrength*3, true);
     else RPU_PushToSolenoidStack(SOL_SAUCER_2, SAUCER_KICKOUT_TIME + SaucerEjectStrength*3, true);
 
@@ -2384,7 +2438,10 @@ int RunAttractMode(int curState, boolean curStateChanged) {
   }
 
   if (CurrentTime>ThorPlayTime) {
-    ThorPlayTime = CurrentTime + 360000;
+    ThorPlayTime = CurrentTime + 300000;
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+    TopperALB.PlayAnimation(S23_ANIMATION_DIM_LIGHTNING_1);
+#endif
     PlaySoundEffect(SOUND_EFFECT_MACHINE_START);
   }
 
@@ -2807,10 +2864,13 @@ int InitNewBall(bool curStateChanged) {
     LastSaucer2Hit = 0;
 
     // See if any locks have been stolen and move them from locked to availble
-    UpdatePlayerLocks();
+    UpdatePlayerLocks();    
 //    byte rallyNum = CurrentBallInPlay - 1;
 //    if (BallsPerGame>3) rallyNum = (CurrentBallInPlay>1) ? ((CurrentBallInPlay==5)?2:1) : 0;
     PlayBackgroundSong(SOUND_EFFECT_RALLY_SONG_1);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+    TopperALB.PlayAnimation(S23_ANIMATION_DIM_LIGHTNING_1);
+#endif
   }
 
   if (CountBallsInTrough()<(TotalBallsLoaded-NumberOfBallsLocked)) {
@@ -3075,6 +3135,9 @@ int ManageGameMode() {
       JailBreakMultiballRunning = false;
       if (DEBUG_MESSAGES) Serial.write("Dropped multiballs because BIP=1\n");
       PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_AFTER_MULTI);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.StopAnimation();
+#endif
     }
   } else {
     if (MultiballBallSave==0) BallSaveEndTime = 0;
@@ -3132,11 +3195,39 @@ int ManageGameMode() {
         GameModeStage = 0;
       }
 
+      if (GameModeStage==0 && CurrentTime>(GameModeStartTime+35000)) {
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_2);
+#endif
+        GameModeStage = 1;      
+      } else if (GameModeStage==1 && CurrentTime>(GameModeStartTime+60000)) {
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_DIM_LIGHTNING_1);
+#endif
+        GameModeStage = 2;
+      } else if (GameModeStage==2 && CurrentTime>(GameModeStartTime+90000)) {
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_DIM_LIGHTNING_1);
+#endif
+        GameModeStage = 3;
+      } else if (GameModeStage==3 && CurrentTime>(GameModeStartTime+98000)) {
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_1);
+#endif
+        Audio.StopAllAudio();
+        PlayBackgroundSong(SOUND_EFFECT_RALLY_SONG_1);
+        GameModeStartTime = CurrentTime;
+        GameModeStage = 0;
+      }
+
       if (BallFirstSwitchHitTime != 0) {
         SetGameMode(GAME_MODE_UNSTRUCTURED_PLAY);
         if (BallsPerGame==3) {
           PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_SONG_1 + (CurrentBallInPlay-1));
         } else {
+
+          fix song to be 0, 0, 1, 1, 2
+          
           byte trackNum = CurrentBallInPlay - 0;
           if (CurrentBallInPlay>1 && CurrentBallInPlay<5) trackNum = 1;
           if (CurrentBallInPlay==5) trackNum = 2;
@@ -3155,6 +3246,9 @@ int ManageGameMode() {
         if (DEBUG_MESSAGES) {
           Serial.write("Entering unstructured play\n");
         }
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_SPARKLE);
+#endif
       }      
 
       if (TimersPaused && IdleModeEnabled) {
@@ -3508,6 +3602,10 @@ int CountdownBonus(boolean curStateChanged) {
     CountdownBonusHurryUp = false;
 
     BonusCountDownEndTime = 0xFFFFFFFF;
+
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+    TopperALB.AllLampsOff();
+#endif
   }
 
   unsigned long countdownDelayTime = (unsigned long)(CountDownDelayTimes[IncrementingBonusXCounter-1]);
@@ -3798,6 +3896,17 @@ void HandleSaucerDownSwitch(byte switchIndex) {
       Serial.write("Handling saucer outside of game play\n");
     }  
   }
+
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+  if ( (PlayerLockStatus[CurrentPlayer]&LOCK_1_ENGAGED) && (PlayerLockStatus[CurrentPlayer]&LOCK_2_ENGAGED) ) {
+    TopperALB.LoopAnimation(S23_ANIMATION_CANDY_PULSE);
+  } else if ( (PlayerLockStatus[CurrentPlayer]&LOCK_1_ENGAGED) ) {
+    TopperALB.LoopAnimation(S23_ANIMATION_YELLOW_PULSE);
+  } else if ( (PlayerLockStatus[CurrentPlayer]&LOCK_2_ENGAGED) ) {
+    TopperALB.LoopAnimation(S23_ANIMATION_CYAN_PULSE);
+  }
+#endif
+  
 }
 
 
@@ -3873,12 +3982,18 @@ int HandleSystemSwitches(int curState, byte switchHit) {
       if (IdleMode != IDLE_MODE_BALL_SEARCH && (CurrentTime - LastTiltWarningTime) > TILT_WARNING_DEBOUNCE_TIME) {
         LastTiltWarningTime = CurrentTime;
         NumTiltWarnings += 1;
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_FIRE);
+#endif
         if (NumTiltWarnings > MaxTiltWarnings) {
           RPU_DisableSolenoidStack();
           RPU_SetDisableFlippers(true);
           RPU_TurnOffAllLamps();
           RPU_SetLampState(LAMP_HEAD_TILT, 1);
           Audio.StopAllAudio();
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+          TopperALB.LoopAnimation(S23_ANIMATION_FIRE);
+#endif
         }
         PlaySoundEffect(SOUND_EFFECT_TILT_WARNING);
       }
@@ -3905,7 +4020,7 @@ boolean HandleDropTarget(byte bankNum, byte switchHit) {
 
   if (StormMultiballRunning) {
     AddToBonus(numTargetsDown);
-    CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 1000;
+    CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 2500;
     boolean cleared = curBank->CheckIfBankCleared();
     if (cleared) {
       if (BonusXIncreaseAvailable[CurrentPlayer]<8) BonusXIncreaseAvailable[CurrentPlayer] += 1;      
@@ -3917,13 +4032,22 @@ boolean HandleDropTarget(byte bankNum, byte switchHit) {
         DropTargetResetTime[0] = 2000 + CurrentTime;
         DropTargetResetTime[1] = 4000 + CurrentTime;
         DropTargetResetTime[2] = 6000 + CurrentTime;
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_2);
+#endif
       } else {
         CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 5000;      
         PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_STORM_CLEARED);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_2);
+#endif
       }
       
     } else {
       PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_STORM_HIT);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_1);
+#endif
     }
     
   } else if (DropTargetMode[CurrentPlayer]==DROP_TARGETS_IN_ORDER) {
@@ -3935,11 +4059,19 @@ boolean HandleDropTarget(byte bankNum, byte switchHit) {
       if ((LoopMultiballRunning||SpinnerMultiballRunning) && BonusXIncreaseAvailable[CurrentPlayer]<8) BonusXIncreaseAvailable[CurrentPlayer] += 1;      
       if (bankNum==DropTargetStage[CurrentPlayer]) {
         if (bankNum<2) {
+          AddToBonus(2+bankNum);
+          CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10000;
+          if (bankNum==1) CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10000;
           DropTargetStage[CurrentPlayer] += 1;
           curBank->ResetDropTargets(CurrentTime + 500, true);
           DropTargetResetTime[bankNum] = 0;
           PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_STAGE_COMPLETE);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+          TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_2);
+#endif
         } else {
+          AddToBonus(5);
+          CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 30000;
           FeaturesCompleted[CurrentPlayer] |= FEATURE_DROP_TARGET_FRENZY;
           DropTargetStage[CurrentPlayer] = 0;
           DropTargetMode[CurrentPlayer] = DROP_TARGETS_FRENZY;
@@ -3960,35 +4092,52 @@ boolean HandleDropTarget(byte bankNum, byte switchHit) {
           DropTargetResetTime[2] = 0;
           PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_MODE_COMPLETE);
           QueueNotification(SOUND_EFFECT_VP_DROP_TARGET_FRENZY, 8);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+          TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_2);
+#endif
         }
       } else {
+        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 2000;
         curBank->ResetDropTargets(CurrentTime + 500, true);
         DropTargetResetTime[bankNum] = 0;
         PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_RESET);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_1);
+#endif
       }
     } else {
       PlaySoundEffect(SOUND_EFFECT_LIGHTNING_1 + CurrentTime%12);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.PlayAnimation(S23_ANIMATION_LIGHTNING_1 + CurrentTime%12);
+#endif
     }
 
   } else if (DropTargetMode[CurrentPlayer]==DROP_TARGETS_FRENZY) {
     AddToBonus(numTargetsDown);
-    CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 2500;
+    CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 12500;
     boolean cleared = curBank->CheckIfBankCleared();
     if (cleared) {
+      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 50000;
       if ((LoopMultiballRunning||SpinnerMultiballRunning) && BonusXIncreaseAvailable[CurrentPlayer]<8) BonusXIncreaseAvailable[CurrentPlayer] += 1;      
       curBank->ResetDropTargets(CurrentTime + 500, true);
       DropTargetResetTime[bankNum] = 0;
       PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_RESET);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.PlayAnimation(S23_ANIMATION_SPARKLE);
+#endif
     } else {
       if (DropTargetResetTime[bankNum]==0) DropTargetResetTime[bankNum] = 3000 + CurrentTime;
       PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_VALUE_HIT);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.PlayAnimation(S23_ANIMATION_LIGHTNING_1 + CurrentTime%12);
+#endif
       FrenzyDropLastHit = CurrentTime;
     }
   } else if (DropTargetMode[CurrentPlayer]>=DROP_TARGETS_JACKPOT) {
 
     if (bankNum==DropTargetStage[CurrentPlayer]) {
       AddToBonus(numTargetsDown);
-      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 1000;
+      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 5000;
 
       boolean cleared = curBank->CheckIfBankCleared();
       if (cleared) {
@@ -4028,6 +4177,9 @@ boolean HandleDropTarget(byte bankNum, byte switchHit) {
         
       } else {
         PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_HIT);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_1);
+#endif
 
         if (DropTargetMode[CurrentPlayer]>DROP_TARGETS_JACKPOT) {
           unsigned long resetTime = 20000;
@@ -4040,6 +4192,9 @@ boolean HandleDropTarget(byte bankNum, byte switchHit) {
       
     } else {
       PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_NO_POINTS);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.PlayAnimation(S23_ANIMATION_DIM_LIGHTNING_1);
+#endif
       if (bankNum>DropTargetStage[CurrentPlayer]) {
         // Reset drops and stage
         if (DropTargets1.GetStatus(false)) DropTargets1.ResetDropTargets(CurrentTime + 1250, true);
@@ -4056,11 +4211,17 @@ boolean HandleDropTarget(byte bankNum, byte switchHit) {
     if (cleared) {
       if (bankNum==DropTargetStage[CurrentPlayer]) {
         if (bankNum<2) {
+          CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 25000;
+          if (bankNum==1) CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 25000;
           DropTargetStage[CurrentPlayer] += 1;
           curBank->ResetDropTargets(CurrentTime + 500, true);
           DropTargetResetTime[bankNum] = 0;
           PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_STAGE_COMPLETE);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+          TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_1);
+#endif
         } else {
+          CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 75000;
           DropTargetStage[CurrentPlayer] = 0;
           DropTargetMode[CurrentPlayer] = DROP_TARGETS_FRENZY;
           IncreasePlayfieldMultiplier(DROP_TARGET_FRENZY_TIME);
@@ -4078,14 +4239,23 @@ boolean HandleDropTarget(byte bankNum, byte switchHit) {
           DropTargetResetTime[1] = 0;
           DropTargetResetTime[2] = 0;
           PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_MODE_COMPLETE);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+          TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_1);
+#endif
         }
       } else {
         curBank->ResetDropTargets(CurrentTime + 500, true);
         DropTargetResetTime[bankNum] = 0;
         PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_RESET);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_BIG_LIGHTNING_2);
+#endif
       }
     } else {
       PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_HIT);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.PlayAnimation(S23_ANIMATION_LIGHTNING_1 + CurrentTime%12);
+#endif
     }  
   }
   
@@ -4106,6 +4276,9 @@ void HandleSpinnerMultiball() {
       SpinnerMultiballDoubleJackpotReady = false;
       if (SpinnerMaxGoal[CurrentPlayer]<226) SpinnerMaxGoal[CurrentPlayer] += 25; 
       QueueNotification(SOUND_EFFECT_VP_SPINNER_MULTIBALL_START, 10);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.LoopAnimation(S23_ANIMATION_RTOL_BLUE);
+#endif
       
       IncreasePlayfieldMultiplier(15000);
       IncreasePlayfieldMultiplier(15000);
@@ -4137,6 +4310,9 @@ void HandleLoopMultiball() {
       if (LoopMulitballGoal[CurrentPlayer]>9) LoopMulitballGoal[CurrentPlayer] = 9;
 
       QueueNotification(SOUND_EFFECT_VP_LOOP_MULTIBALL_START, 10);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.LoopAnimation(S23_ANIMATION_LTOR_BLUE);
+#endif
 
       IncreasePlayfieldMultiplier(15000);
       IncreasePlayfieldMultiplier(15000);
@@ -4222,6 +4398,9 @@ void UpdateLocksBasedOnStandups(unsigned int startingHits) {
         // annouce lock ready
         if (!multiballRunning) QueueNotification(SOUND_EFFECT_VP_LOCK_1_READY, 10);
         PlayerLockStatus[CurrentPlayer] |= LOCK_1_AVAILABLE;
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_RTOL_BLUE);
+#endif
       }
     }
 
@@ -4243,6 +4422,9 @@ void UpdateLocksBasedOnStandups(unsigned int startingHits) {
         // annouce lock ready
         if (!multiballRunning) QueueNotification(SOUND_EFFECT_VP_LOCK_2_READY, 10);
         PlayerLockStatus[CurrentPlayer] |= LOCK_2_AVAILABLE;
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+        TopperALB.PlayAnimation(S23_ANIMATION_LTOR_BLUE);
+#endif
       }
       TotalSpins[CurrentPlayer] = 0;        
     }    
@@ -4333,6 +4515,9 @@ void HandleStandupTarget(byte switchHit) {
     if (StormMultiballReady[CurrentPlayer]) {
       FeaturesCompleted[CurrentPlayer] |= FEATURE_STORM_MULTIBALL;
       QueueNotification(SOUND_EFFECT_VP_STORM_MULTIBALL_START, 10);
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.LoopAnimation(S23_ANIMATION_SPARKLE);
+#endif
 
       IncreasePlayfieldMultiplier(15000);
       IncreasePlayfieldMultiplier(15000);
@@ -4379,6 +4564,12 @@ void HandleGamePlaySwitches(byte switchHit) {
       if (CurrentTime < (BallSearchSolenoidFireTime[BALL_SEARCH_RIGHT_SLING_INDEX] + 150)) break;
       CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
       PlaySoundEffect(SOUND_EFFECT_SLING_SHOT);
+
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      if (switchHit==SW_LEFT_SLING_BOTTOM) TopperALB.PlayAnimation(S23_ANIMATION_LEFT_FLASH);
+      else TopperALB.PlayAnimation(S23_ANIMATION_RIGHT_FLASH);
+#endif
+      
       LastSwitchHitTime = CurrentTime;
       if (BallFirstSwitchHitTime == 0) BallFirstSwitchHitTime = CurrentTime;
       break;
@@ -4387,6 +4578,12 @@ void HandleGamePlaySwitches(byte switchHit) {
     case SW_RIGHT_SLING_TOP:
       CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
       PlaySoundEffect(SOUND_EFFECT_SLING_SHOT);
+
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      if (switchHit==SW_LEFT_SLING_TOP) TopperALB.PlayAnimation(S23_ANIMATION_LEFT_FLASH);
+      else TopperALB.PlayAnimation(S23_ANIMATION_RIGHT_FLASH);
+#endif
+
       LastSwitchHitTime = CurrentTime;
       if (BallFirstSwitchHitTime == 0) BallFirstSwitchHitTime = CurrentTime;
       break;
@@ -4472,6 +4669,10 @@ void HandleGamePlaySwitches(byte switchHit) {
           PlaySoundEffect(SOUND_EFFECT_LOOP);
         }
       }
+
+#ifdef RPU_OS_USE_ACCESSORY_LAMP_BOARD
+      TopperALB.PlayAnimation(S23_ANIMATION_PURPLE_LOOP);
+#endif
       
       LastSwitchHitTime = CurrentTime;
       if (BallFirstSwitchHitTime == 0) BallFirstSwitchHitTime = CurrentTime;

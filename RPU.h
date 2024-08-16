@@ -22,7 +22,7 @@
 #ifndef RPU_OS_H
 
 #define RPU_OS_MAJOR_VERSION  5
-#define RPU_OS_MINOR_VERSION  6
+#define RPU_OS_MINOR_VERSION  8
 
 struct PlayfieldAndCabinetSwitch {
   byte switchNum;
@@ -77,12 +77,6 @@ unsigned long RPU_InitializeMPU(
 void RPU_SetupGameSwitches(int s_numSwitches, int s_numPrioritySwitches, PlayfieldAndCabinetSwitch *s_gameSwitchArray);
 byte RPU_GetDipSwitches(byte index);
 
-// EEProm Helper Functions
-byte RPU_ReadByteFromEEProm(unsigned short startByte);
-void RPU_WriteByteToEEProm(unsigned short startByte, byte value);
-unsigned long RPU_ReadULFromEEProm(unsigned short startByte, unsigned long defaultValue=0);
-void RPU_WriteULToEEProm(unsigned short startByte, unsigned long value);
-
 //   Swtiches
 byte RPU_PullFirstFromSwitchStack();
 boolean RPU_ReadSingleSwitchState(byte switchNum);
@@ -106,7 +100,7 @@ boolean RPU_PushToTimedSolenoidStack(byte solenoidNumber, byte numPushes, unsign
 void RPU_UpdateTimedSolenoidStack(unsigned long curTime);
 
 //   Displays
-byte RPU_SetDisplay(int displayNumber, unsigned long value, boolean blankByMagnitude=false, byte minDigits=2);
+byte RPU_SetDisplay(int displayNumber, unsigned long value, boolean blankByMagnitude=false, byte minDigits=2, boolean showCommasByMagnitude=false);
 void RPU_SetDisplayBlank(int displayNumber, byte bitMask);
 void RPU_SetDisplayCredits(int value, boolean displayOn = true, boolean showBothDigits=true);
 void RPU_SetDisplayMatch(int value, boolean displayOn = true, boolean showBothDigits=true);
@@ -165,12 +159,19 @@ void RPU_PlayW11Music(byte songNum);
 #endif
 
 
-//   General
+//   General Utility
 byte RPU_DataRead(int address);
 void RPU_Update(unsigned long currentTime);
 #if RPU_MPU_ARCHITECTURE>9
 void RPU_SetBoardLEDs(boolean LED1, boolean LED2, byte BCDValue = 0xFF);
 #endif
+
+// EEProm Helper Functions
+byte RPU_ReadByteFromEEProm(unsigned short startByte);
+void RPU_WriteByteToEEProm(unsigned short startByte, byte value);
+unsigned long RPU_ReadULFromEEProm(unsigned short startByte, unsigned long defaultValue=0);
+void RPU_WriteULToEEProm(unsigned short startByte, unsigned long value);
+
 
 #ifdef RPU_CPP_FILE
   int NumGameSwitches = 0;
