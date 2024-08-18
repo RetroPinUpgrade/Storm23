@@ -1842,7 +1842,7 @@ void ReleaseLockedBall(byte lockIndex) {
     NumberOfBallsLocked -= 1;
     NumberOfBallsInPlay += 1;
 
-    fix saucer eject strength -- more options (one is too weak and two is too strong)
+    // fix saucer eject strength -- more options (one is too weak and two is too strong)
     if (lockIndex==0) RPU_PushToSolenoidStack(SOL_SAUCER_1, SAUCER_KICKOUT_TIME + SaucerEjectStrength*3, true);
     else RPU_PushToSolenoidStack(SOL_SAUCER_2, SAUCER_KICKOUT_TIME + SaucerEjectStrength*3, true);
 
@@ -3226,7 +3226,7 @@ int ManageGameMode() {
           PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_SONG_1 + (CurrentBallInPlay-1));
         } else {
 
-          fix song to be 0, 0, 1, 1, 2
+          // fix song to be 0, 0, 1, 1, 2
           
           byte trackNum = CurrentBallInPlay - 0;
           if (CurrentBallInPlay>1 && CurrentBallInPlay<5) trackNum = 1;
