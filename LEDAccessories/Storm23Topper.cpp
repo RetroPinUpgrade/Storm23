@@ -1,6 +1,5 @@
 #include "Arduino.h"
 #define SMALLEST_CODESIZE
-#include <ky-040.h>
 #include "LEDAccessoryBoard.h"
 #include "ALB-Communication.h"
 #include <Adafruit_NeoPixel.h>
