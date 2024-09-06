@@ -68,8 +68,8 @@ void setup() {
 
   ReadSettings();
 
-//  Serial.begin(115200);
-//  Serial.write("Start\n");
+  Serial.begin(115200);
+  Serial.write("Start\n");
 }
 
 
@@ -243,13 +243,13 @@ void loop() {
     ShowSettingsMode(SettingsMode, currentFrame);
   }
 
-/*
+
   if (CurrentTime>(LastReportTime+1000)) {
     char buf[128];
     sprintf(buf, "Time = %lu\n", CurrentTime);
     Serial.write(buf);
     LastReportTime = CurrentTime;
   }
-*/  
+  
 
 }

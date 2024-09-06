@@ -638,6 +638,7 @@ boolean UpdateStripsBasedOnI2C(unsigned long lastMessageSeenTime, byte lastMessa
       StripOfLEDs1.clear();
       StripOfLEDs1.show();
       StripHasBeenShown = false;
+      Serial.write("Clearing strip for ALB_COMMAND_STOP_ALL_ANIMATIONS or ALB_COMMAND_ALL_LAMPS_OFF.\n");
     }
     return false;
   }
@@ -647,6 +648,7 @@ boolean UpdateStripsBasedOnI2C(unsigned long lastMessageSeenTime, byte lastMessa
       StripOfLEDs1.clear();
       StripOfLEDs1.show();
       StripHasBeenShown = false;
+      Serial.write("Clearing strip because last message was 60 seconds ago.\n");
     }
     return false;    
   }
@@ -657,6 +659,10 @@ boolean UpdateStripsBasedOnI2C(unsigned long lastMessageSeenTime, byte lastMessa
   if (lastMessage==ALB_COMMAND_PLAY_ANIMATION) {
     if (PlayAnimation(lastParameter, lastMessageSeenTime, currentTime)) {
       animationRendered = true;
+    } else {
+      char buf[128];
+      sprintf(buf, "Finished play animation %d\n", lastParameter);
+      Serial.write(buf);
     }
   } else if (lastMessage==ALB_COMMAND_LOOP_ANIMATION) {
     if (LoopStartTime==0) LoopStartTime = currentTime;
@@ -664,10 +670,18 @@ boolean UpdateStripsBasedOnI2C(unsigned long lastMessageSeenTime, byte lastMessa
     
     if (!PlayAnimation(lastParameter, LoopStartTime, currentTime)) {
       LoopStartTime = 0;
+      char buf[128];
+      sprintf(buf, "Finished loop animation %d\n", lastParameter);
+      Serial.write(buf);
     }
     animationRendered = true;   
   } else if (lastMessage==ALB_COMMAND_STOP_ANIMATION) {
-    if (lastParameter==LoopRunning) LoopRunning = 0xFF;
+    if (lastParameter==LoopRunning) {
+      LoopRunning = 0xFF;
+      char buf[128];
+      sprintf(buf, "Stop animation loop %d\n", lastParameter);
+      Serial.write(buf);
+    }
   }
   
   if (!animationRendered && LoopRunning!=0xFF) {
@@ -713,8 +727,14 @@ boolean UpdateStripsBasedOnI2C(unsigned long lastMessageSeenTime, byte lastMessa
 
 
 byte AdvanceSettingsMode(byte oldSettingsMode) {
+  
+  LoopRunning = oldSettingsMode;
+  LoopStartTime = millis();
   oldSettingsMode += 1;
-  if (oldSettingsMode>0) oldSettingsMode = SETTINGS_MODE_OFF;
+  char buf[128];
+  sprintf(buf, "Settings mode = %d\n", LoopRunning);
+  Serial.write(buf);
+  if (oldSettingsMode>25) oldSettingsMode = SETTINGS_MODE_OFF;
   return oldSettingsMode;
 }
 
@@ -725,6 +745,11 @@ boolean ShowSettingsMode(byte settingsMode, unsigned long currentAnimationFrame)
   (void)currentAnimationFrame;
 
   StripOfLEDs1.clear();
+  if (!PlayAnimation(LoopRunning, LoopStartTime, millis())) {
+    LoopStartTime = 0;
+    StripOfLEDs1.clear();
+    StripOfLEDs1.show();
+  }
   StripOfLEDs1.show();
 
   return true;
