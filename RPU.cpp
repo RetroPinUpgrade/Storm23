@@ -325,8 +325,10 @@ void RPU_DataWrite(int address, byte data) {
   // Set up address lines
   PORTC = (PORTC & 0xE0) | address;
 
-  // Wait for a falling edge of the clock
-  while((PIND & 0x10));
+  // Wait until clock is high and then 
+  // move on after falling edge
+  while (!(PIND & 0x10));
+  while ((PIND & 0x10));
 
   // Pulse VMA over one clock cycle
   // Set VMA ON
@@ -462,8 +464,10 @@ void RPU_DataWrite(int address, byte data) {
   PORTA = ((address & 0x3FC0)>>6); // A6-A13
   PORTC = (PORTC & 0x3F) | ((address & 0x4000)>>7) | ((address & 0x8000)>>9); // A14-A15
 
-  // Wait for a falling edge of the clock
-  while((PINE & 0x20));
+  // Wait until clock is high and then 
+  // move on after falling edge
+  while (!(PINE & 0x20));
+  while ((PINE & 0x20));
 
   // Pulse VMA over one clock cycle
   // Set VMA ON
@@ -623,8 +627,10 @@ void RPU_DataWrite(int address, byte data) {
   PORTK = (byte)(address/256);
 
   if (UsesM6800Processor) {
-    // Wait for a falling edge of the clock
-    while((PING & 0x04));
+    // Wait until clock is high and then 
+    // move on after falling edge
+    while (!(PING & 0x04));
+    while ((PING & 0x04));
   } else {
     // Set clock low (PG2) (if 6802/8)
     PORTG &= ~0x04;
@@ -943,8 +949,10 @@ void RPU_DataWrite(int address, byte data) {
   PORTK = (byte)(address/256);
 
   if (UsesM6800Processor) {
-    // Wait for a falling edge of the clock
-    while((PING & 0x04));
+    // Wait until clock is high and then 
+    // move on after falling edge
+    while (!(PING & 0x04));
+    while ((PING & 0x04));
   } else {
     // Set clock low (PG2) (if 6802/8)
     PORTG &= ~0x04;
